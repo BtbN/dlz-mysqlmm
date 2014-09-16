@@ -5,15 +5,11 @@
 
 find_path(BIND9_INCLUDE_DIR
 	NAMES
-		isc/result.h dns/version.h bind9/version.h
-	PATHS
-		/usr/include /usr/local/include)
+		isc/result.h dns/version.h bind9/version.h)
 
 find_library(BIND9_LIB
 	NAMES
-		bind9 libbind9
-	PATHS
-		/usr/lib /usr/local/lib)
+		bind9 libbind9)
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Bind9 DEFAULT_MSG BIND9_LIB BIND9_INCLUDE_DIR)

@@ -1,0 +1,35 @@
+# Defines the following vars if successfull:
+#  MYSQLCONNCPP_INCLUDE_DIRS
+#  MYSQLCONNCPP_LIBRARIES
+#  MYSQLCONNCPP_FOUND
+
+find_path(MYSQLCONNCPP_INCLUDE_DIR_cppconn
+	NAMES
+		prepared_statement.h
+	PATH_SUFFIXES
+		cppconn)
+
+find_path(MYSQLCONNCPP_INCLUDE_DIR_driver
+	NAMES
+		mysql_connection.h mysql_driver.h)
+
+if(MYSQLCONNCPP_INCLUDE_DIR_driver AND MYSQLCONNCPP_INCLUDE_DIR_cppconn)
+	set(MYSQLCONNCPP_INCLUDE_DIR "${MYSQLCONNCPP_INCLUDE_DIR_driver}:${MYSQLCONNCPP_INCLUDE_DIR_cppconn}")
+	list(REMOVE_DUPLICATES MYSQLCONNCPP_INCLUDE_DIR)
+endif()
+
+find_library(MYSQLCONNCPP_LIB
+	NAMES
+		mysqlcppconn mysqlcppconn-static
+	PATH_SUFFIXES
+		cppconn)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(MySQLConnCpp DEFAULT_MSG MYSQLCONNCPP_LIB MYSQLCONNCPP_INCLUDE_DIR)
+mark_as_advanced(MYSQLCONNCPP_LIB MYSQLCONNCPP_INCLUDE_DIR)
+
+if(MYSQLCONNCPP_FOUND)
+	set(MYSQLCONNCPP_LIBRARIES ${MYSQLCONNCPP_LIB})
+	set(MYSQLCONNCPP_INCLUDE_DIRS ${MYSQLCONNCPP_INCLUDE_DIR})
+endif()
+
