@@ -1,38 +1,61 @@
+#include <exception>
+
+#include "mysqlmm_manager.h"
+#include "util.h"
+
 #include "dlz_mysqlmm.h"
 
 
-
-isc_result_t dlz_lookup(const char *zone, const char *name, void *dbdata, dns_sdlzlookup_t *lookup, dns_clientinfomethods_t *methods, dns_clientinfo_t *clientinfo)
+isc_result_t dlz_lookup(const char *zone,
+                        const char *name,
+                        void *dbdata,
+                        dns_sdlzlookup_t *lookup,
+                        dns_clientinfomethods_t *methods,
+                        dns_clientinfo_t *clientinfo)
 {
-
+	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_findzonedb(void *dbdata, const char *name, dns_clientinfomethods_t *methods, dns_clientinfo_t *clientinfo)
+isc_result_t dlz_findzonedb(void *dbdata,
+                            const char *name,
+                            dns_clientinfomethods_t *methods,
+                            dns_clientinfo_t *clientinfo)
 {
-
+	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_allowzonexfr(void *dbdata, const char *name, const char *client)
+isc_result_t dlz_allowzonexfr(void *dbdata,
+                              const char *name,
+                              const char *client)
 {
-
+	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_allnodes(const char *zone, void *dbdata, dns_sdlzallnodes_t *allnodes)
+isc_result_t dlz_allnodes(const char *zone,
+                          void *dbdata,
+                          dns_sdlzallnodes_t *allnodes)
 {
-
+	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_authority(const char *zone, void *dbdata, dns_sdlzlookup_t *lookup)
+isc_result_t dlz_authority(const char *zone,
+                           void *dbdata,
+                           dns_sdlzlookup_t *lookup)
 {
-
+	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_newversion(const char *zone, void *dbdata, void **versionp)
+isc_result_t dlz_newversion(const char *zone,
+                            void *dbdata,
+                            void **versionp)
 {
 	return ISC_R_NOTIMPLEMENTED;
 }
 
-void dlz_closeversion(const char *zone, isc_boolean_t commit, void *dbdata, void **versionp)
+void dlz_closeversion(const char *zone,
+                      isc_boolean_t commit,
+                      void *dbdata,
+                      void **versionp)
 {
 	if(versionp)
 		*versionp = nullptr;
@@ -40,39 +63,61 @@ void dlz_closeversion(const char *zone, isc_boolean_t commit, void *dbdata, void
 	return;
 }
 
-isc_result_t dlz_configure(dns_view_t *view, dns_dlzdb_t *dlzdb, void *dbdata)
+isc_result_t dlz_create(const char *dlzname,
+                        unsigned int argc,
+                        char *argv[],
+                        void **dbdata,
+                        ...)
 {
-	return ISC_R_NOTIMPLEMENTED;
-}
+	va_list ap;
+	const char *helper_name = nullptr;
+	bind9_functions b9funcs = { 0, 0, 0, 0 };
 
-isc_boolean_t dlz_ssumatch(const char *signer, const char *name, const char *tcpaddr, const char *type, const char *key, isc_uint32_t keydatalen, unsigned char *keydata, void *dbdata)
-{
-	return ISC_FALSE;
-}
+	va_start(ap, dbdata);
+	while(helper_name = va_arg(ap, decltype(helper_name)))
+	{
+		if(strcmp("log", helper_name) == 0)
+		{
+			b9funcs.log = va_arg(ap, decltype(b9funcs.log));
+		}
+		else if(strcmp("putrr", helper_name) == 0)
+		{
+			b9funcs.putrr = va_arg(ap, decltype(b9funcs.putrr));
+		}
+		else if(strcmp("putnamedrr", helper_name) == 0)
+		{
+			b9funcs.putnamedrr = va_arg(ap, decltype(b9funcs.putnamedrr));
+		}
+		else if(strcmp("writeable_zone", helper_name) == 0)
+		{
+			b9funcs.writeable_zone = va_arg(ap, decltype(b9funcs.writeable_zone));
+		}
+	}
+	va_end(ap);
 
-isc_result_t dlz_addrdataset(const char *name, const char *rdatastr, void *dbdata, void *version)
-{
-	return ISC_R_NOTIMPLEMENTED;
-}
+	std::vector<std::string> args;
+	args.resize(argc);
 
-isc_result_t dlz_subrdataset(const char *name, const char *rdatastr, void *dbdata, void *version)
-{
-	return ISC_R_NOTIMPLEMENTED;
-}
+	for(unsigned int i = 0; i < argc; ++i)
+		args[i] = argv[i];
 
-isc_result_t dlz_delrdataset(const char *name, const char *type, void *dbdata, void *version)
-{
-	return ISC_R_NOTIMPLEMENTED;
-}
+	try
+	{
+		MySQLMMManager *res = new MySQLMMManager(dlzname, b9funcs, args);
+		*dbdata = res;
+	}
+	catch(const std::exception &e)
+	{
+		return ISC_R_UNEXPECTED;
+	}
 
-isc_result_t dlz_create(const char *dlzname, unsigned int argc, char *argv[], void **dbdata)
-{
-
+	return ISC_R_SUCCESS;
 }
 
 void dlz_destroy(void *dbdata)
 {
-
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+	delete mm;
 }
 
 int dlz_version(unsigned int *flags)

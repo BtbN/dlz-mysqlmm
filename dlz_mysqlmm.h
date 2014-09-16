@@ -1,21 +1,7 @@
-#ifndef H_DLZ_MYSQLMM__H
-#define H_DLZ_MYSQLMM__H
+#pragma once
 
 #include <dns/dlz.h>
 #include <dns/dlz_dlopen.h>
-
-typedef void log_t(int level, const char *fmt, ...);
-
-struct bind9_functions
-{
-	log_t *log;
-	dns_sdlz_putrr_t *putrr;
-	dns_sdlz_putnamedrr_t *putnamedrr;
-	dns_dlz_writeablezone_t *writeable_zone;
-};
-
-extern "C"
-{
 
 #if defined _WIN32 || defined __CYGWIN__
 # define EXPORT __declspec(dllexport)
@@ -26,6 +12,9 @@ extern "C"
 #  define EXPORT
 # endif
 #endif
+
+extern "C"
+{
 
 EXPORT isc_result_t dlz_lookup(const char *zone,
                         const char *name,
@@ -99,5 +88,3 @@ EXPORT void dlz_destroy(void *dbdata);
 EXPORT int dlz_version(unsigned int *flags);
 
 }
-
-#endif
