@@ -5,7 +5,7 @@
 
 find_path(BIND9_INCLUDE_DIR
 	NAMES
-		isc/result.h bind9/version.h
+		isc/result.h dns/version.h bind9/version.h
 	PATHS
 		/usr/include /usr/local/include)
 
