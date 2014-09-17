@@ -11,7 +11,7 @@ isc_result_t dlz_configure(dns_view_t *view,
 	MM_UNUSED(dlzdb);
 	MM_UNUSED(dbdata);
 
-	return ISC_R_NOTIMPLEMENTED;
+	return ISC_R_SUCCESS;
 }
 
 isc_boolean_t dlz_ssumatch(const char *signer,
@@ -70,6 +70,17 @@ isc_result_t dlz_delrdataset(const char *name,
 	MM_UNUSED(type);
 	MM_UNUSED(dbdata);
 	MM_UNUSED(version);
+
+	return ISC_R_NOTIMPLEMENTED;
+}
+
+isc_result_t dlz_newversion(const char *zone,
+                            void *dbdata,
+                            void **versionp)
+{
+	MM_UNUSED(zone);
+	MM_UNUSED(dbdata);
+	MM_UNUSED(versionp);
 
 	return ISC_R_NOTIMPLEMENTED;
 }

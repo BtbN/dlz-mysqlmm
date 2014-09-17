@@ -1,5 +1,6 @@
 #include <exception>
 
+#include <json/json.h>
 #include <mysql_driver.h>
 
 #include "util.h"
@@ -32,19 +33,14 @@ class mysqlmm_thread_init
 		_drv = nullptr;
 	}
 
-	void init(sql::Driver *drv)
+	void init(MySQLMMManager *mm)
 	{
 		if(_init)
 			return;
 
 		_init = true;
-		_drv = drv;
-		drv->threadInit();
-	}
-
-	void init_mt()
-	{
-		_init = true;
+		_drv = mm->driver;
+		_drv->threadInit();
 	}
 };
 
@@ -55,16 +51,33 @@ MySQLMMManager *MySQLMMManager::inst = nullptr;
 MySQLMMManager::MySQLMMManager(const std::string& dlzname,
                                const bind9_functions& b9f,
                                const std::vector<std::string>& args)
+	:f(b9f)
 {
 	if(inst)
 		throw std::runtime_error("Tried to create more than one MySQLMMManager");
 
-	mysqlmm_thread_init_obj.init_mt();
+	if(args.size() != 2)
+		throw std::runtime_error("MySQLMM expects exactly one argument");
 
+	f.log(ISC_LOG_INFO, "MySQLMM driver instance %s starting", dlzname.c_str());
+
+	driver = sql::mysql::get_driver_instance();
+
+	mysqlmm_thread_init_obj.init(this);
 	inst = this;
 }
 
 MySQLMMManager::~MySQLMMManager()
 {
 	inst = nullptr;
+}
+
+std::shared_ptr<sql::Connection> MySQLMMManager::spawnConnection()
+{
+
+}
+
+std::shared_ptr<sql::Connection> MySQLMMManager::getFreeConnection()
+{
+
 }

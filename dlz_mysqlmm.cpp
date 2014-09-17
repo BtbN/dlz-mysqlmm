@@ -45,13 +45,6 @@ isc_result_t dlz_authority(const char *zone,
 	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_newversion(const char *zone,
-                            void *dbdata,
-                            void **versionp)
-{
-	return ISC_R_NOTIMPLEMENTED;
-}
-
 void dlz_closeversion(const char *zone,
                       isc_boolean_t commit,
                       void *dbdata,

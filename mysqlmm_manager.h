@@ -2,11 +2,23 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 
-struct bind9_functions;
+#include "util.h"
+
+namespace sql
+{
+	namespace mysql
+	{
+		class MySQL_Driver;
+	}
+	class Connection;
+}
 
 class MySQLMMManager
 {
+	friend class mysqlmm_thread_init;
+
 	MySQLMMManager(const MySQLMMManager&) = delete;
 	MySQLMMManager& operator=(const MySQLMMManager&) = delete;
 
@@ -17,4 +29,13 @@ class MySQLMMManager
 	               const bind9_functions &b9f,
 	               const std::vector<std::string> &args);
 	~MySQLMMManager();
+
+	private:
+	std::shared_ptr<sql::Connection> spawnConnection();
+	std::shared_ptr<sql::Connection> getFreeConnection();
+
+	private:
+	sql::mysql::MySQL_Driver *driver;
+	std::vector<std::shared_ptr<sql::Connection>> connections;
+	bind9_functions f;
 };
