@@ -1,5 +1,7 @@
 #include <exception>
 #include <fstream>
+#include <thread>
+#include <mutex>
 
 #include <json/json.h>
 #include <mysql_driver.h>
@@ -96,7 +98,39 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 
 			mmquery query;
 
+			QueryTypes qtype = MM_QUERY_ALLNODES;
+
 			query.sql = queryval.get("sql", "").asString();
+
+			if(queryname == "allnodes")
+			{
+				qtype = MM_QUERY_ALLNODES;
+			}
+			else if(queryname == "lookup")
+			{
+				qtype = MM_QUERY_LOOKUP;
+			}
+			else if(queryname == "findzone")
+			{
+				qtype = MM_QUERY_FINDZONE;
+			}
+			else if(queryname == "authority")
+			{
+				qtype = MM_QUERY_AUTHORITY;
+			}
+			else if(queryname == "allowxfr")
+			{
+				qtype = MM_QUERY_ALLOWXFR;
+			}
+			else if(queryname == "countzone")
+			{
+				qtype = MM_QUERY_COUNTZONE;
+			}
+			else
+			{
+				std::string msg = "MySQLMM: Unknown query name given: ";
+				throw std::runtime_error(msg + queryname);
+			}
 
 			Json::Value paramsArr = queryval["params"];
 
@@ -104,11 +138,29 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 			{
 				for(const Json::Value &param: paramsArr)
 				{
-					query.params.push_back(param.asString());
+					std::string pstr = param.asString();
+
+					if(pstr == "zone")
+					{
+						query.params.push_back(MM_PARAM_ZONE);
+					}
+					else if(pstr == "record")
+					{
+						query.params.push_back(MM_PARAM_RECORD);
+					}
+					else if(pstr == "client")
+					{
+						query.params.push_back(MM_PARAM_CLIENT);
+					}
+					else
+					{
+						std::string msg = "MySQLMM: Unknown query parameter: ";
+						throw std::runtime_error(msg + pstr);
+					}
 				}
 			}
 
-			queries[queryname] = std::move(query);
+			queries[qtype] = std::move(query);
 		}
 	}
 	catch(const std::exception &e)
@@ -118,14 +170,38 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 	}
 }
 
-std::shared_ptr<sql::Connection> MySQLMMManager::spawnConnection()
+static std::recursive_mutex connectionAquisitionMutex;
+
+std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 {
-	std::shared_ptr<sql::Connection> res;
+	std::lock_guard<std::recursive_mutex> lock(connectionAquisitionMutex);
+
+	if(connections.size() >= max_connections)
+		throw std::runtime_error("MySQLMM: Maximum number of allowed connections reached");
+
+	std::shared_ptr<mmconn> res = std::make_shared<mmconn>();
+
+	res->connection = std::shared_ptr<sql::Connection>(driver->connect(url, user, password));
+
+	if(!db.empty())
+		res->connection->setSchema(db);
+
+	connections.push_back(res);
+
 	return res;
 }
 
-std::shared_ptr<sql::Connection> MySQLMMManager::getFreeConnection()
+std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::getFreeConnection()
 {
-	std::shared_ptr<sql::Connection> res;
-	return res;
+	std::lock_guard<std::recursive_mutex> lock(connectionAquisitionMutex);
+
+	for(std::shared_ptr<mmconn> &conn: connections)
+	{
+		if(conn.unique())
+		{
+			return conn;
+		}
+	}
+
+	return spawnConnection();
 }

@@ -10,10 +10,6 @@ find_package(Threads REQUIRED)
 find_package(MySQLConnCpp REQUIRED)
 find_package(Bind9 REQUIRED)
 
-if(NOT CMAKE_USE_PTHREADS_INIT)
-	message(FATAL_ERROR "We need pthreads!")
-endif()
-
 set(jsoncpp_SOURCES
 	jsoncpp.cpp)
 
