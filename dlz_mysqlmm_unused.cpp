@@ -84,3 +84,18 @@ isc_result_t dlz_newversion(const char *zone,
 
 	return ISC_R_NOTIMPLEMENTED;
 }
+
+void dlz_closeversion(const char *zone,
+                      isc_boolean_t commit,
+                      void *dbdata,
+                      void **versionp)
+{
+	MM_UNUSED(zone);
+	MM_UNUSED(commit);
+	MM_UNUSED(dbdata);
+
+	if(versionp)
+		*versionp = nullptr;
+
+	return;
+}
