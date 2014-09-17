@@ -28,7 +28,7 @@ set(dlz_mysqlmm_SOURCES
 add_library(jsoncpp
 	${jsoncpp_SOURCES})
 target_compile_options(jsoncpp PRIVATE
-	-fvisibility=hidden -Wall)
+	-fvisibility=hidden -Wall -fPIC -DPIC)
 
 add_library(dlz_mysqlmm MODULE
 	${dlz_mysqlmm_SOURCES})
