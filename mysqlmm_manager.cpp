@@ -92,9 +92,14 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 
 		Json::Value queriesObj = root["queries"];
 
-		for(const std::string &queryname: queriesObj.getMemberNames())
+		bool have_findzone = false;
+		bool have_lookup = false;
+
+		for(std::string queryname: queriesObj.getMemberNames())
 		{
 			Json::Value queryval = queriesObj[queryname];
+
+			strtolower(queryname);
 
 			mmquery query;
 
@@ -102,29 +107,42 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 
 			query.sql = queryval.get("sql", "").asString();
 
+			bool need_client = false;
+			bool need_zone = false;
+			bool need_record = false;
+
 			if(queryname == "allnodes")
 			{
 				qtype = MM_QUERY_ALLNODES;
+				need_zone = true;
 			}
 			else if(queryname == "lookup")
 			{
 				qtype = MM_QUERY_LOOKUP;
+				have_lookup = true;
+				need_record = true;
 			}
 			else if(queryname == "findzone")
 			{
 				qtype = MM_QUERY_FINDZONE;
+				have_findzone = true;
+				need_zone = true;
 			}
 			else if(queryname == "authority")
 			{
 				qtype = MM_QUERY_AUTHORITY;
+				need_zone = true;
 			}
 			else if(queryname == "allowxfr")
 			{
 				qtype = MM_QUERY_ALLOWXFR;
+				need_zone = true;
+				need_client = true;
 			}
 			else if(queryname == "countzone")
 			{
 				qtype = MM_QUERY_COUNTZONE;
+				need_zone = true;
 			}
 			else
 			{
@@ -133,6 +151,10 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 			}
 
 			Json::Value paramsArr = queryval["params"];
+
+			bool have_zone = false;
+			bool have_record = false;
+			bool have_client = false;
 
 			if(paramsArr.isArray())
 			{
@@ -143,14 +165,17 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 					if(pstr == "zone")
 					{
 						query.params.push_back(MM_PARAM_ZONE);
+						have_zone = true;
 					}
 					else if(pstr == "record")
 					{
 						query.params.push_back(MM_PARAM_RECORD);
+						have_record = true;
 					}
 					else if(pstr == "client")
 					{
 						query.params.push_back(MM_PARAM_CLIENT);
+						have_client = true;
 					}
 					else
 					{
@@ -160,11 +185,27 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 				}
 			}
 
+			if( (need_zone   && !have_zone  )
+			 || (need_record && !have_record)
+			 || (need_client && !have_client))
+			{
+				f.log(ISC_LOG_INFO, "%s query needs %s%s%s parameters",
+				      queryname.c_str(),
+				      need_zone ? "zone " : "",
+				      need_record ? "record " : "",
+				      need_client ? "client " : "");
+				throw std::runtime_error("Required parameters not present");
+			}
+
 			queries[qtype] = std::move(query);
 		}
+
+		if(!have_findzone || !have_lookup)
+			throw std::runtime_error("findzone and lookup queries are required");
 	}
 	catch(const std::exception &e)
 	{
+		queries.clear();
 		std::string msg = "Failed reading MySQLMM configuration: ";
 		throw std::runtime_error(msg + e.what());
 	}

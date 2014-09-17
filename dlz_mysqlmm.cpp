@@ -71,19 +71,19 @@ isc_result_t dlz_create(const char *dlzname,
 	{
 		if(strcmp("log", helper_name) == 0)
 		{
-			b9funcs.log = va_arg(ap, decltype(b9funcs.log));
+			b9funcs.log_f = va_arg(ap, decltype(b9funcs.log_f));
 		}
 		else if(strcmp("putrr", helper_name) == 0)
 		{
-			b9funcs.putrr = va_arg(ap, decltype(b9funcs.putrr));
+			b9funcs.putrr_f = va_arg(ap, decltype(b9funcs.putrr_f));
 		}
 		else if(strcmp("putnamedrr", helper_name) == 0)
 		{
-			b9funcs.putnamedrr = va_arg(ap, decltype(b9funcs.putnamedrr));
+			b9funcs.putnamedrr_f = va_arg(ap, decltype(b9funcs.putnamedrr_f));
 		}
 		else if(strcmp("writeable_zone", helper_name) == 0)
 		{
-			b9funcs.writeable_zone = va_arg(ap, decltype(b9funcs.writeable_zone));
+			b9funcs.writeable_zone_f = va_arg(ap, decltype(b9funcs.writeable_zone_f));
 		}
 	}
 	va_end(ap);
