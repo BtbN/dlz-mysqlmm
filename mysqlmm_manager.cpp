@@ -36,13 +36,13 @@ class mysqlmm_thread_init
 		_drv = nullptr;
 	}
 
-	void init(MySQLMMManager *mm)
+	void init(sql::Driver *drv)
 	{
 		if(_init)
 			return;
 
 		_init = true;
-		_drv = mm->driver;
+		_drv = drv;
 		_drv->threadInit();
 	}
 };
@@ -61,9 +61,14 @@ MySQLMMManager::MySQLMMManager(const std::string& dlzname,
 
 	f.log(ISC_LOG_INFO, "MySQLMM driver instance %s starting", dlzname.c_str());
 
+	readConfig(args[1]);
+
 	driver = sql::mysql::get_driver_instance();
 
-	mysqlmm_thread_init_obj.init(this);
+	mysqlmm_thread_init_obj.init(driver);
+
+	for(unsigned int i = 0; i < initial_connections; ++i)
+		spawnConnection();
 }
 
 MySQLMMManager::~MySQLMMManager()
@@ -89,6 +94,9 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 		db = root.get("db", "").asString();
 		initial_connections = root.get("initial_connections", 1).asUInt();
 		max_connections = root.get("max_connections", initial_connections + 8).asUInt();
+
+		if(max_connections < initial_connections)
+			throw std::runtime_error("max_connections must be >= initial_connections");
 
 		Json::Value queriesObj = root["queries"];
 
@@ -201,7 +209,9 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 		}
 
 		if(!have_findzone || !have_lookup)
+		{
 			throw std::runtime_error("findzone and lookup queries are required");
+		}
 	}
 	catch(const std::exception &e)
 	{
@@ -245,4 +255,16 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::getFreeConnection()
 	}
 
 	return spawnConnection();
+}
+
+bool MySQLMMManager::findzonedb(const std::string& name)
+{
+	return true;
+}
+
+bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
+{
+	f.putrr(lookup, "A", 86400, "1.2.3.4");
+
+	return true;
 }

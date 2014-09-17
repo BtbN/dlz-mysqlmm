@@ -13,6 +13,25 @@ isc_result_t dlz_lookup(const char *zone,
                         dns_clientinfomethods_t *methods,
                         dns_clientinfo_t *clientinfo)
 {
+	MM_UNUSED(methods);
+	MM_UNUSED(clientinfo);
+
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+
+	try
+	{
+		if(mm->lookup(zone, name, lookup))
+			return ISC_R_SUCCESS;
+
+		return ISC_R_FAILURE;
+	}
+	catch(const std::exception &e)
+	{
+		mm->f.log(ISC_LOG_ERROR, "Failed looking up zone: %s", e.what());
+
+		return ISC_R_FAILURE;
+	}
+
 	return ISC_R_UNEXPECTED;
 }
 
@@ -21,6 +40,25 @@ isc_result_t dlz_findzonedb(void *dbdata,
                             dns_clientinfomethods_t *methods,
                             dns_clientinfo_t *clientinfo)
 {
+	MM_UNUSED(methods);
+	MM_UNUSED(clientinfo);
+
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+
+	try
+	{
+		if(mm->findzonedb(name))
+			return ISC_R_SUCCESS;
+
+		return ISC_R_NOTFOUND;
+	}
+	catch(const std::exception &e)
+	{
+		mm->f.log(ISC_LOG_ERROR, "Failed finding zone: %s", e.what());
+
+		return ISC_R_FAILURE;
+	}
+
 	return ISC_R_UNEXPECTED;
 }
 

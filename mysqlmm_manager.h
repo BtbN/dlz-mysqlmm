@@ -60,15 +60,20 @@ class MySQLMMManager
 	               const std::vector<std::string> &args);
 	~MySQLMMManager();
 
+	bool findzonedb(const std::string &name);
+	bool lookup(const std::string &zone, const std::string &name, dns_sdlzlookup_t *lookup);
+
 	private:
 	void readConfig(const std::string &cfg);
 	std::shared_ptr<mmconn> spawnConnection();
 	std::shared_ptr<mmconn> getFreeConnection();
 
+	public:
+	bind9_functions f;
+
 	private:
 	sql::mysql::MySQL_Driver *driver;
 	std::vector<std::shared_ptr<mmconn>> connections;
-	bind9_functions f;
 
 	std::string url;
 	std::string user;
