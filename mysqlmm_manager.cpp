@@ -4,7 +4,10 @@
 #include <mutex>
 
 #include <json/json.h>
+
 #include <mysql_driver.h>
+#include <mysql_connection.h>
+#include <cppconn/prepared_statement.h>
 
 #include "util.h"
 #include "mysqlmm_manager.h"
@@ -236,6 +239,16 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 
 	if(!db.empty())
 		res->connection->setSchema(db);
+
+	res->queries = queries;
+
+	for(auto &qry: res->queries)
+	{
+		qry.second.prep_stmt = std::shared_ptr<sql::PreparedStatement>(res->connection->prepareStatement(qry.second.sql));
+
+		if(!qry.second.prep_stmt)
+			throw std::runtime_error(std::string("Failed preparing query: ") + qry.second.sql);
+	}
 
 	connections.push_back(res);
 
