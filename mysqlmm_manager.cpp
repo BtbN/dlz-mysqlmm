@@ -1,4 +1,5 @@
 #include <exception>
+#include <sstream>
 #include <fstream>
 #include <thread>
 #include <mutex>
@@ -270,14 +271,101 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::getFreeConnection()
 	return spawnConnection();
 }
 
+void MySQLMMManager::fillPrepQry(MySQLMMManager::mmquery &qry, const std::string& zone, const std::string& record, const std::string& client)
+{
+	for(unsigned int i = 0; i < qry.params.size(); ++i)
+	{
+		switch(qry.params[i])
+		{
+			case MM_PARAM_CLIENT:
+				qry.prep_stmt->setString(i + 1, client);
+				break;
+			case MM_PARAM_ZONE:
+				qry.prep_stmt->setString(i + 1, zone);
+				break;
+			case MM_PARAM_RECORD:
+				qry.prep_stmt->setString(i + 1, record);
+				break;
+		}
+	}
+}
+
 bool MySQLMMManager::findzonedb(const std::string& name)
 {
-	return true;
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_FINDZONE);
+	fillPrepQry(qry, name);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+	if(res->next())
+		return true;
+
+	return false;
 }
 
 bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
 {
-	f.putrr(lookup, "A", 86400, "1.2.3.4");
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_LOOKUP);
+	fillPrepQry(qry, zone, name);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+	sql::ResultSetMetaData *meta = res->getMetaData();
+
+	if(!meta)
+		throw std::runtime_error("lookup needs result metadata");
+
+	unsigned int cols = meta->getColumnCount();
+
+	while(res->next())
+	{
+		switch(cols)
+		{
+			case 1:
+				f.putrr(lookup,
+				        "A",
+				        86400,
+				        res->getString(1).c_str());
+				break;
+			case 2:
+				f.putrr(lookup,
+				        res->getString(1).c_str(),
+				        86400,
+				        res->getString(2).c_str());
+				break;
+			case 3:
+				f.putrr(lookup,
+				        res->getString(1).c_str(),
+				        res->getInt(2),
+				        res->getString(3).c_str());
+				break;
+			default:
+			{
+				std::ostringstream str;
+				std::string sep = "";
+
+				for(unsigned int i = 3; i <= cols; ++i)
+				{
+					std::string part = res->getString(i);
+
+					if(!part.empty())
+					{
+						str << sep << part;
+						sep = " ";
+					}
+				}
+
+				f.putrr(lookup,
+				        res->getString(1).c_str(),
+				        res->getInt(2),
+				        str.str().c_str());
+			}
+		}
+	}
 
 	return true;
 }

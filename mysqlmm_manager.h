@@ -67,6 +67,7 @@ class MySQLMMManager
 	void readConfig(const std::string &cfg);
 	std::shared_ptr<mmconn> spawnConnection();
 	std::shared_ptr<mmconn> getFreeConnection();
+	void fillPrepQry(mmquery &qry, const std::string &zone = "", const std::string &record = "", const std::string &client = "");
 
 	public:
 	bind9_functions f;
