@@ -15,6 +15,7 @@ namespace sql
 	}
 	class Connection;
 	class PreparedStatement;
+	class ResultSet;
 }
 
 class MySQLMMManager
@@ -60,14 +61,18 @@ class MySQLMMManager
 	               const std::vector<std::string> &args);
 	~MySQLMMManager();
 
-	bool findzonedb(const std::string &name);
+	bool findzonedb(const std::string &zone);
 	bool lookup(const std::string &zone, const std::string &name, dns_sdlzlookup_t *lookup);
+
+	inline bool hasAuthority() { return queries.find(MM_QUERY_AUTHORITY) != queries.end(); }
+	bool authority(const std::string &zone, dns_sdlzlookup_t *lookup);
 
 	private:
 	void readConfig(const std::string &cfg);
 	std::shared_ptr<mmconn> spawnConnection();
 	std::shared_ptr<mmconn> getFreeConnection();
 	void fillPrepQry(mmquery &qry, const std::string &zone = "", const std::string &record = "", const std::string &client = "");
+	bool process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet> &res);
 
 	public:
 	bind9_functions f;

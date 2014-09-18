@@ -6,35 +6,6 @@
 #include "dlz_mysqlmm.h"
 
 
-isc_result_t dlz_lookup(const char *zone,
-                        const char *name,
-                        void *dbdata,
-                        dns_sdlzlookup_t *lookup,
-                        dns_clientinfomethods_t *methods,
-                        dns_clientinfo_t *clientinfo)
-{
-	MM_UNUSED(methods);
-	MM_UNUSED(clientinfo);
-
-	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
-
-	try
-	{
-		if(mm->lookup(zone, name, lookup))
-			return ISC_R_SUCCESS;
-
-		return ISC_R_FAILURE;
-	}
-	catch(const std::exception &e)
-	{
-		mm->f.log(ISC_LOG_ERROR, "Failed looking up zone: %s", e.what());
-
-		return ISC_R_FAILURE;
-	}
-
-	return ISC_R_UNEXPECTED;
-}
-
 isc_result_t dlz_findzonedb(void *dbdata,
                             const char *name,
                             dns_clientinfomethods_t *methods,
@@ -62,6 +33,61 @@ isc_result_t dlz_findzonedb(void *dbdata,
 	return ISC_R_UNEXPECTED;
 }
 
+isc_result_t dlz_lookup(const char *zone,
+                        const char *name,
+                        void *dbdata,
+                        dns_sdlzlookup_t *lookup,
+                        dns_clientinfomethods_t *methods,
+                        dns_clientinfo_t *clientinfo)
+{
+	MM_UNUSED(methods);
+	MM_UNUSED(clientinfo);
+
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+
+	try
+	{
+		if(mm->lookup(zone, name, lookup))
+			return ISC_R_SUCCESS;
+
+		return ISC_R_FAILURE;
+	}
+	catch(const std::exception &e)
+	{
+		mm->f.log(ISC_LOG_ERROR, "Failed looking up zone %s", e.what());
+
+		return ISC_R_FAILURE;
+	}
+
+	return ISC_R_UNEXPECTED;
+}
+
+isc_result_t dlz_authority(const char *zone,
+                           void *dbdata,
+                           dns_sdlzlookup_t *lookup)
+{
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+
+	try
+	{
+		if(!mm->hasAuthority())
+			return ISC_R_NOTIMPLEMENTED;
+
+		if(mm->authority(zone, lookup))
+			return ISC_R_SUCCESS;
+
+		return ISC_R_FAILURE;
+	}
+	catch(const std::exception &e)
+	{
+		mm->f.log(ISC_LOG_ERROR, "Failed looking up authority of zone %s", e.what());
+
+		return ISC_R_FAILURE;
+	}
+
+	return ISC_R_UNEXPECTED;
+}
+
 isc_result_t dlz_allowzonexfr(void *dbdata,
                               const char *name,
                               const char *client)
@@ -72,13 +98,6 @@ isc_result_t dlz_allowzonexfr(void *dbdata,
 isc_result_t dlz_allnodes(const char *zone,
                           void *dbdata,
                           dns_sdlzallnodes_t *allnodes)
-{
-	return ISC_R_UNEXPECTED;
-}
-
-isc_result_t dlz_authority(const char *zone,
-                           void *dbdata,
-                           dns_sdlzlookup_t *lookup)
 {
 	return ISC_R_UNEXPECTED;
 }

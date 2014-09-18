@@ -102,6 +102,14 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 		if(max_connections < initial_connections)
 			throw std::runtime_error("max_connections must be >= initial_connections");
 
+		f.log(ISC_LOG_INFO, "MySQLMM Settings:");
+		f.log(ISC_LOG_INFO, " - url = %s", url.c_str());
+		f.log(ISC_LOG_INFO, " - user = %s", user.c_str());
+		f.log(ISC_LOG_INFO, " - password %s", password.empty() ? "not set" : "set");
+		f.log(ISC_LOG_INFO, " - db = %s", db.c_str());
+		f.log(ISC_LOG_INFO, " - initial_connections = %d", initial_connections);
+		f.log(ISC_LOG_INFO, " - max_connections = %d", max_connections);
+
 		Json::Value queriesObj = root["queries"];
 
 		bool have_findzone = false;
@@ -201,13 +209,15 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 			 || (need_record && !have_record)
 			 || (need_client && !have_client))
 			{
-				f.log(ISC_LOG_INFO, "%s query needs %s%s%s parameters",
+				f.log(ISC_LOG_ERROR, "%s query needs %s%s%s parameters",
 				      queryname.c_str(),
 				      need_zone ? "zone " : "",
 				      need_record ? "record " : "",
 				      need_client ? "client " : "");
 				throw std::runtime_error("Required parameters not present");
 			}
+
+			f.log(ISC_LOG_INFO, " - %s query with %d parameters: %s", queryname.c_str(), (int)query.params.size(), query.sql.c_str());
 
 			queries[qtype] = std::move(query);
 		}
@@ -258,6 +268,8 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 
 std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::getFreeConnection()
 {
+	mysqlmm_thread_init_obj.init(driver);
+
 	std::lock_guard<std::recursive_mutex> lock(connectionAquisitionMutex);
 
 	for(std::shared_ptr<mmconn> &conn: connections)
@@ -290,34 +302,8 @@ void MySQLMMManager::fillPrepQry(MySQLMMManager::mmquery &qry, const std::string
 	}
 }
 
-bool MySQLMMManager::findzonedb(const std::string& name)
+bool MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet>& res)
 {
-	std::shared_ptr<mmconn> con = getFreeConnection();
-
-	mmquery &qry = con->queries.at(MM_QUERY_FINDZONE);
-	fillPrepQry(qry, name);
-
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
-
-	if(res->next())
-	{
-		f.log(ISC_LOG_INFO, "MySQLMM Found zone %s!", name.c_str());
-		return true;
-	}
-
-	f.log(ISC_LOG_INFO, "MySQLMM Not found zone %s!", name.c_str());
-	return false;
-}
-
-bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
-{
-	std::shared_ptr<mmconn> con = getFreeConnection();
-
-	mmquery &qry = con->queries.at(MM_QUERY_LOOKUP);
-	fillPrepQry(qry, zone, name);
-
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
-
 	sql::ResultSetMetaData *meta = res->getMetaData();
 
 	if(!meta)
@@ -325,32 +311,33 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 
 	unsigned int cols = meta->getColumnCount();
 
-	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
-
 	while(res->next())
 	{
 		switch(cols)
 		{
+			case 0:
+				throw std::runtime_error("Zero columns in result!");
+				break;
 			case 1:
 				f.putrr(lookup,
 				        "A",
 				        86400,
 				        res->getString(1).c_str());
-				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", res->getString(1).c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result 1: A %s", res->getString(1).c_str());
 				break;
 			case 2:
 				f.putrr(lookup,
 				        res->getString(1).c_str(),
 				        86400,
 				        res->getString(2).c_str());
-				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", res->getString(2).c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result 2: %s %s", res->getString(1).c_str(), res->getString(2).c_str());
 				break;
 			case 3:
 				f.putrr(lookup,
-				        res->getString(1).c_str(),
-				        res->getInt(2),
+				        res->getString(2).c_str(),
+				        res->getInt(1),
 				        res->getString(3).c_str());
-				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", res->getString(3).c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result 3: %s %s", res->getString(2).c_str(), res->getString(3).c_str());
 				break;
 			default:
 			{
@@ -369,13 +356,60 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 				}
 
 				f.putrr(lookup,
-				        res->getString(1).c_str(),
-				        res->getInt(2),
+				        res->getString(2).c_str(),
+				        res->getInt(1),
 				        str.str().c_str());
-				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", str.str().c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result +: %s %s", res->getString(2).c_str(), str.str().c_str());
 			}
 		}
 	}
 
 	return true;
+}
+
+bool MySQLMMManager::findzonedb(const std::string& zone)
+{
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_FINDZONE);
+	fillPrepQry(qry, zone);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+	if(res->next())
+	{
+		f.log(ISC_LOG_INFO, "MySQLMM Found zone %s!", zone.c_str());
+		return true;
+	}
+
+	f.log(ISC_LOG_INFO, "MySQLMM Not found zone %s!", zone.c_str());
+	return false;
+}
+
+bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
+{
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_LOOKUP);
+	fillPrepQry(qry, zone, name);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
+
+	return process_look_auth_res(lookup, res);
+}
+
+bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup)
+{
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_AUTHORITY);
+	fillPrepQry(qry, zone);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+	f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
+
+	return process_look_auth_res(lookup, res);
 }
