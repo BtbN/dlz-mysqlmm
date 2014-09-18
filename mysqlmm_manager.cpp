@@ -90,7 +90,7 @@ void MySQLMMManager::readConfig(const std::string &cfg)
 		ifs.open(cfg);
 
 		if(!reader.parse(ifs, root))
-			throw std::runtime_error("Failed parsing MySQLMM config");
+			throw std::runtime_error(std::string("Failed parsing MySQLMM config: ") + reader.getFormatedErrorMessages());
 
 		url = root.get("url", "tcp://localhost/bind").asString();
 		user = root.get("user", "bind").asString();
@@ -300,8 +300,12 @@ bool MySQLMMManager::findzonedb(const std::string& name)
 	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
 
 	if(res->next())
+	{
+		f.log(ISC_LOG_INFO, "MySQLMM Found zone %s!", name.c_str());
 		return true;
+	}
 
+	f.log(ISC_LOG_INFO, "MySQLMM Not found zone %s!", name.c_str());
 	return false;
 }
 
@@ -321,6 +325,8 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 
 	unsigned int cols = meta->getColumnCount();
 
+	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
+
 	while(res->next())
 	{
 		switch(cols)
@@ -330,18 +336,21 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 				        "A",
 				        86400,
 				        res->getString(1).c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", res->getString(1).c_str());
 				break;
 			case 2:
 				f.putrr(lookup,
 				        res->getString(1).c_str(),
 				        86400,
 				        res->getString(2).c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", res->getString(2).c_str());
 				break;
 			case 3:
 				f.putrr(lookup,
 				        res->getString(1).c_str(),
 				        res->getInt(2),
 				        res->getString(3).c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", res->getString(3).c_str());
 				break;
 			default:
 			{
@@ -363,6 +372,7 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 				        res->getString(1).c_str(),
 				        res->getInt(2),
 				        str.str().c_str());
+				f.log(ISC_LOG_INFO, "MySQLMM Result: %s", str.str().c_str());
 			}
 		}
 	}
