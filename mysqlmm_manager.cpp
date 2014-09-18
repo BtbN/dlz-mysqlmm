@@ -63,7 +63,7 @@ MySQLMMManager::MySQLMMManager(const std::string& dlzname,
 	if(args.size() != 2)
 		throw std::runtime_error("MySQLMM expects exactly one argument");
 
-	f.log(ISC_LOG_INFO, "MySQLMM driver instance %s starting", dlzname.c_str());
+	f.log(ISC_LOG_INFO, "MySQLMM driver instance \"%s\" starting", dlzname.c_str());
 
 	readConfig(args[1]);
 

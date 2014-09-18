@@ -128,6 +128,7 @@ isc_result_t dlz_create(const char *dlzname,
 	}
 	catch(const std::exception &e)
 	{
+		b9funcs.log(ISC_LOG_ERROR, "Creating MysqlMMManager failed: %s", e.what());
 		return ISC_R_UNEXPECTED;
 	}
 
