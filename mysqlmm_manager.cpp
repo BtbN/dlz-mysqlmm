@@ -302,7 +302,7 @@ void MySQLMMManager::fillPrepQry(MySQLMMManager::mmquery &qry, const std::string
 	}
 }
 
-bool MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet>& res)
+void MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet>& res)
 {
 	sql::ResultSetMetaData *meta = res->getMetaData();
 
@@ -361,8 +361,6 @@ bool MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::
 		if(result != ISC_R_SUCCESS)
 			throw std::runtime_error("MySQLMM putrr failed");
 	}
-
-	return true;
 }
 
 bool MySQLMMManager::findzonedb(const std::string& zone)
@@ -384,7 +382,7 @@ bool MySQLMMManager::findzonedb(const std::string& zone)
 	return false;
 }
 
-bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
+void MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
@@ -395,10 +393,10 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
 
-	return process_look_auth_res(lookup, res);
+	process_look_auth_res(lookup, res);
 }
 
-bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup)
+void MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
@@ -409,10 +407,10 @@ bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup
 
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
 
-	return process_look_auth_res(lookup, res);
+	process_look_auth_res(lookup, res);
 }
 
-bool MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes)
+void MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
@@ -456,7 +454,26 @@ bool MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allno
 
 		if(result != ISC_R_SUCCESS)
 			throw std::runtime_error("MySQLMM putnamedrr failed");
+
+		f.log(ISC_LOG_INFO, "MySQLMM allnodes result: %s %s %d %s", res->getString(3).c_str(), res->getString(2).c_str(), res->getUInt(1), str.str().c_str());
+	}
+}
+
+bool MySQLMMManager::allowxfr(const std::string &zone, const std::string &client)
+{
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_ALLOWXFR);
+	fillPrepQry(qry, zone, "", client);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+	if(res->next())
+	{
+		f.log(ISC_LOG_INFO, "MySQLMM Client %s allowed xfr in zone %s!", client.c_str(), zone.c_str());
+		return true;
 	}
 
-	return true;
+	f.log(ISC_LOG_INFO, "MySQLMM Client %s NOT allowed xfr in zone %s!", client.c_str(), zone.c_str());
+	return false;
 }

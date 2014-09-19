@@ -47,10 +47,8 @@ isc_result_t dlz_lookup(const char *zone,
 
 	try
 	{
-		if(mm->lookup(zone, name, lookup))
-			return ISC_R_SUCCESS;
-
-		return ISC_R_FAILURE;
+		mm->lookup(zone, name, lookup);
+		return ISC_R_SUCCESS;
 	}
 	catch(const std::exception &e)
 	{
@@ -73,10 +71,9 @@ isc_result_t dlz_authority(const char *zone,
 		if(!mm->hasAuthority())
 			return ISC_R_NOTIMPLEMENTED;
 
-		if(mm->authority(zone, lookup))
-			return ISC_R_SUCCESS;
+		mm->authority(zone, lookup);
 
-		return ISC_R_FAILURE;
+		return ISC_R_SUCCESS;
 	}
 	catch(const std::exception &e)
 	{
@@ -99,10 +96,9 @@ isc_result_t dlz_allnodes(const char *zone,
 		if(!mm->hasAllnodes())
 			return ISC_R_NOTIMPLEMENTED;
 
-		if(mm->allnodes(zone, allnodes))
-			return ISC_R_SUCCESS;
+		mm->allnodes(zone, allnodes);
 
-		return ISC_R_FAILURE;
+		return ISC_R_SUCCESS;
 	}
 	catch(const std::exception &e)
 	{
@@ -118,6 +114,25 @@ isc_result_t dlz_allowzonexfr(void *dbdata,
                               const char *name,
                               const char *client)
 {
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+
+	try
+	{
+		if(!mm->hasAllowxfr())
+			return ISC_R_NOTIMPLEMENTED;
+
+		if(mm->allowxfr(name, client))
+			return ISC_R_SUCCESS;
+
+		return ISC_R_NOTFOUND;
+	}
+	catch(const std::exception &e)
+	{
+		mm->f.log(ISC_LOG_ERROR, "Failed finding zone: %s", e.what());
+
+		return ISC_R_FAILURE;
+	}
+
 	return ISC_R_UNEXPECTED;
 }
 
