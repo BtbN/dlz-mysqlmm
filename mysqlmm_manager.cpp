@@ -313,31 +313,26 @@ bool MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::
 
 	while(res->next())
 	{
+		isc_result_t result;
+
 		switch(cols)
 		{
 			case 0:
 				throw std::runtime_error("Zero columns in result!");
 				break;
 			case 1:
-				f.putrr(lookup,
-				        "A",
-				        86400,
-				        res->getString(1).c_str());
+				result = f.putrr(lookup,
+				                 "A",
+				                 86400,
+				                 res->getString(1).c_str());
 				f.log(ISC_LOG_INFO, "MySQLMM Result 1: A %s", res->getString(1).c_str());
 				break;
 			case 2:
-				f.putrr(lookup,
-				        res->getString(1).c_str(),
-				        86400,
-				        res->getString(2).c_str());
+				result = f.putrr(lookup,
+				                 res->getString(1).c_str(),
+				                 86400,
+				                 res->getString(2).c_str());
 				f.log(ISC_LOG_INFO, "MySQLMM Result 2: %s %s", res->getString(1).c_str(), res->getString(2).c_str());
-				break;
-			case 3:
-				f.putrr(lookup,
-				        res->getString(2).c_str(),
-				        res->getInt(1),
-				        res->getString(3).c_str());
-				f.log(ISC_LOG_INFO, "MySQLMM Result 3: %s %s", res->getString(2).c_str(), res->getString(3).c_str());
 				break;
 			default:
 			{
@@ -355,13 +350,16 @@ bool MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::
 					}
 				}
 
-				f.putrr(lookup,
-				        res->getString(2).c_str(),
-				        res->getInt(1),
-				        str.str().c_str());
+				result = f.putrr(lookup,
+				                 res->getString(2).c_str(),
+				                 res->getInt(1),
+				                 str.str().c_str());
 				f.log(ISC_LOG_INFO, "MySQLMM Result +: %s %s", res->getString(2).c_str(), str.str().c_str());
 			}
 		}
+
+		if(result != ISC_R_SUCCESS)
+			throw std::runtime_error("MySQLMM putrr failed");
 	}
 
 	return true;
@@ -412,4 +410,53 @@ bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
 
 	return process_look_auth_res(lookup, res);
+}
+
+bool MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes)
+{
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_ALLNODES);
+	fillPrepQry(qry, zone);
+
+	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+	sql::ResultSetMetaData *meta = res->getMetaData();
+
+	if(!meta)
+		throw std::runtime_error("MySQLMM allnodes needs result metadata");
+
+	unsigned int cols = meta->getColumnCount();
+
+	if(cols < 4)
+		throw std::runtime_error("MySQLMM allnodes query returned less than 4 fields!");
+
+	f.log(ISC_LOG_INFO, "MySQLMM Looking for allnodes of %s!", zone.c_str());
+
+	while(res->next())
+	{
+		std::ostringstream str;
+		std::string sep = "";
+
+		for(unsigned int i = 4; i <= cols; ++i)
+		{
+			std::string part = res->getString(i);
+
+			if(!part.empty())
+			{
+				str << sep << part;
+				sep = " ";
+			}
+		}
+
+		isc_result_t result = f.putnamedrr(allnodes,
+		                                   res->getString(3).c_str(),
+		                                   res->getString(2).c_str(),
+		                                   res->getUInt(1),
+		                                   str.str().c_str());
+
+		if(result != ISC_R_SUCCESS)
+			throw std::runtime_error("MySQLMM putnamedrr failed");
+	}
+
+	return true;
 }

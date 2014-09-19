@@ -67,6 +67,9 @@ class MySQLMMManager
 	inline bool hasAuthority() { return queries.find(MM_QUERY_AUTHORITY) != queries.end(); }
 	bool authority(const std::string &zone, dns_sdlzlookup_t *lookup);
 
+	inline bool hasAllnodes() { return queries.find(MM_QUERY_ALLNODES) != queries.end(); }
+	bool allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes);
+
 	private:
 	void readConfig(const std::string &cfg);
 	std::shared_ptr<mmconn> spawnConnection();

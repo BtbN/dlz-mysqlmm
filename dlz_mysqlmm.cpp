@@ -88,16 +88,35 @@ isc_result_t dlz_authority(const char *zone,
 	return ISC_R_UNEXPECTED;
 }
 
-isc_result_t dlz_allowzonexfr(void *dbdata,
-                              const char *name,
-                              const char *client)
-{
-	return ISC_R_UNEXPECTED;
-}
-
 isc_result_t dlz_allnodes(const char *zone,
                           void *dbdata,
                           dns_sdlzallnodes_t *allnodes)
+{
+	MySQLMMManager *mm = (MySQLMMManager*)dbdata;
+
+	try
+	{
+		if(!mm->hasAllnodes())
+			return ISC_R_NOTIMPLEMENTED;
+
+		if(mm->allnodes(zone, allnodes))
+			return ISC_R_SUCCESS;
+
+		return ISC_R_FAILURE;
+	}
+	catch(const std::exception &e)
+	{
+		mm->f.log(ISC_LOG_ERROR, "Failed looking up authority of zone %s", e.what());
+
+		return ISC_R_FAILURE;
+	}
+
+	return ISC_R_UNEXPECTED;
+}
+
+isc_result_t dlz_allowzonexfr(void *dbdata,
+                              const char *name,
+                              const char *client)
 {
 	return ISC_R_UNEXPECTED;
 }
