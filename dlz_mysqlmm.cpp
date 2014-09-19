@@ -19,7 +19,14 @@ isc_result_t dlz_findzonedb(void *dbdata,
 	try
 	{
 		if(mm->findzonedb(name))
+		{
+			if(mm->hasCountzone())
+			{
+				mm->countzone(name);
+			}
+
 			return ISC_R_SUCCESS;
+		}
 
 		return ISC_R_NOTFOUND;
 	}

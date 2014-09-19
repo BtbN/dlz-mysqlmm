@@ -477,3 +477,15 @@ bool MySQLMMManager::allowxfr(const std::string &zone, const std::string &client
 	f.log(ISC_LOG_INFO, "MySQLMM Client %s NOT allowed xfr in zone %s!", client.c_str(), zone.c_str());
 	return false;
 }
+
+void MySQLMMManager::countzone(const std::string &zone)
+{
+	std::shared_ptr<mmconn> con = getFreeConnection();
+
+	mmquery &qry = con->queries.at(MM_QUERY_COUNTZONE);
+	fillPrepQry(qry, zone);
+
+	int cnt = qry.prep_stmt->executeUpdate();
+
+	f.log(ISC_LOG_INFO, "MySQL Updated zone count for zone %s. result %d", zone.c_str(), cnt);
+}

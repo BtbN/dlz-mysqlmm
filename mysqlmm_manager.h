@@ -73,6 +73,9 @@ class MySQLMMManager
 	inline bool hasAllowxfr() { return queries.find(MM_QUERY_ALLOWXFR) != queries.end(); }
 	bool allowxfr(const std::string &zone, const std::string &client);
 
+	inline bool hasCountzone() { return queries.find(MM_QUERY_COUNTZONE) != queries.end(); }
+	void countzone(const std::string &zone);
+
 	private:
 	void readConfig(const std::string &cfg);
 	std::shared_ptr<mmconn> spawnConnection();
