@@ -13,6 +13,10 @@
 #include "util.h"
 #include "mysqlmm_manager.h"
 
+#if 0
+#define VERBOSE_LOG
+#endif
+
 class mysqlmm_thread_init
 {
 	bool _init;
@@ -263,6 +267,8 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 
 	connections.push_back(res);
 
+	f.log(ISC_LOG_INFO, "MySQLMM spawned new connection, now at %d out of %d maximum connections", (int)connections.size(), max_connections);
+
 	return res;
 }
 
@@ -325,14 +331,20 @@ void MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::
 				                 "A",
 				                 86400,
 				                 res->getString(1).c_str());
+
+#ifdef VERBOSE_LOG
 				f.log(ISC_LOG_INFO, "MySQLMM Result 1: A %s", res->getString(1).c_str());
+#endif
 				break;
 			case 2:
 				result = f.putrr(lookup,
 				                 res->getString(1).c_str(),
 				                 86400,
 				                 res->getString(2).c_str());
+
+#ifdef VERBOSE_LOG
 				f.log(ISC_LOG_INFO, "MySQLMM Result 2: %s %s", res->getString(1).c_str(), res->getString(2).c_str());
+#endif
 				break;
 			default:
 			{
@@ -354,7 +366,10 @@ void MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::
 				                 res->getString(2).c_str(),
 				                 res->getInt(1),
 				                 str.str().c_str());
+
+#ifdef VERBOSE_LOG
 				f.log(ISC_LOG_INFO, "MySQLMM Result +: %s %s", res->getString(2).c_str(), str.str().c_str());
+#endif
 			}
 		}
 
@@ -374,11 +389,16 @@ bool MySQLMMManager::findzonedb(const std::string& zone)
 
 	if(res->next())
 	{
+#ifdef VERBOSE_LOG
 		f.log(ISC_LOG_INFO, "MySQLMM Found zone %s!", zone.c_str());
+#endif
 		return true;
 	}
 
+#ifdef VERBOSE_LOG
 	f.log(ISC_LOG_INFO, "MySQLMM Not found zone %s!", zone.c_str());
+#endif
+
 	return false;
 }
 
@@ -391,7 +411,9 @@ void MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 
 	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
 
+#ifdef VERBOSE_LOG
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
+#endif
 
 	process_look_auth_res(lookup, res);
 }
@@ -405,7 +427,9 @@ void MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup
 
 	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
 
+#ifdef VERBOSE_LOG
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
+#endif
 
 	process_look_auth_res(lookup, res);
 }
@@ -428,7 +452,9 @@ void MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allno
 	if(cols < 4)
 		throw std::runtime_error("MySQLMM allnodes query returned less than 4 fields!");
 
+#ifdef VERBOSE_LOG
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for allnodes of %s!", zone.c_str());
+#endif
 
 	while(res->next())
 	{
@@ -455,7 +481,9 @@ void MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allno
 		if(result != ISC_R_SUCCESS)
 			throw std::runtime_error("MySQLMM putnamedrr failed");
 
+#ifdef VERBOSE_LOG
 		f.log(ISC_LOG_INFO, "MySQLMM allnodes result: %s %s %d %s", res->getString(3).c_str(), res->getString(2).c_str(), res->getUInt(1), str.str().c_str());
+#endif
 	}
 }
 
@@ -470,11 +498,16 @@ bool MySQLMMManager::allowxfr(const std::string &zone, const std::string &client
 
 	if(res->next())
 	{
+#ifdef VERBOSE_LOG
 		f.log(ISC_LOG_INFO, "MySQLMM Client %s allowed xfr in zone %s!", client.c_str(), zone.c_str());
+#endif
 		return true;
 	}
 
+#ifdef VERBOSE_LOG
 	f.log(ISC_LOG_INFO, "MySQLMM Client %s NOT allowed xfr in zone %s!", client.c_str(), zone.c_str());
+#endif
+
 	return false;
 }
 
@@ -487,5 +520,9 @@ void MySQLMMManager::countzone(const std::string &zone)
 
 	int cnt = qry.prep_stmt->executeUpdate();
 
+#ifdef VERBOSE_LOG
 	f.log(ISC_LOG_INFO, "MySQL Updated zone count for zone %s. result %d", zone.c_str(), cnt);
+#else
+	(void)cnt;
+#endif
 }
