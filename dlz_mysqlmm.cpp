@@ -165,6 +165,10 @@ isc_result_t dlz_create(const char *dlzname,
 		{
 			b9funcs.writeable_zone_f = va_arg(ap, decltype(b9funcs.writeable_zone_f));
 		}
+		else
+		{
+			va_arg(ap, void*);
+		}
 	}
 	va_end(ap);
 
