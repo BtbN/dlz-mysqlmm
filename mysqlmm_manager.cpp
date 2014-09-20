@@ -13,7 +13,7 @@
 #include "util.h"
 #include "mysqlmm_manager.h"
 
-#if 0
+#if 1
 #define VERBOSE_LOG
 #endif
 
@@ -308,13 +308,14 @@ void MySQLMMManager::fillPrepQry(MySQLMMManager::mmquery &qry, const std::string
 	}
 }
 
-void MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet>& res)
+bool MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet>& res)
 {
 	sql::ResultSetMetaData *meta = res->getMetaData();
 
 	if(!meta)
 		throw std::runtime_error("lookup needs result metadata");
 
+	bool found = false;
 	unsigned int cols = meta->getColumnCount();
 
 	while(res->next())
@@ -375,7 +376,11 @@ void MySQLMMManager::process_look_auth_res(dns_sdlzlookup_t* lookup, const std::
 
 		if(result != ISC_R_SUCCESS)
 			throw std::runtime_error("MySQLMM putrr failed");
+
+		found = true;
 	}
+
+	return found;
 }
 
 bool MySQLMMManager::findzonedb(const std::string& zone)
@@ -402,8 +407,12 @@ bool MySQLMMManager::findzonedb(const std::string& zone)
 	return false;
 }
 
-void MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
+bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
 {
+#ifdef VERBOSE_LOG
+	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
+#endif
+
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
 	mmquery &qry = con->queries.at(MM_QUERY_LOOKUP);
@@ -411,14 +420,10 @@ void MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 
 	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
 
-#ifdef VERBOSE_LOG
-	f.log(ISC_LOG_INFO, "MySQLMM Looking for %s in zone %s!", name.c_str(), zone.c_str());
-#endif
-
-	process_look_auth_res(lookup, res);
+	return process_look_auth_res(lookup, res);
 }
 
-void MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup)
+bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
@@ -431,10 +436,10 @@ void MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup
 	f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
 #endif
 
-	process_look_auth_res(lookup, res);
+	return process_look_auth_res(lookup, res);
 }
 
-void MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes)
+bool MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
@@ -448,6 +453,7 @@ void MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allno
 		throw std::runtime_error("MySQLMM allnodes needs result metadata");
 
 	unsigned int cols = meta->getColumnCount();
+	bool found = false;
 
 	if(cols < 4)
 		throw std::runtime_error("MySQLMM allnodes query returned less than 4 fields!");
@@ -484,7 +490,11 @@ void MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allno
 #ifdef VERBOSE_LOG
 		f.log(ISC_LOG_INFO, "MySQLMM allnodes result: %s %s %d %s", res->getString(3).c_str(), res->getString(2).c_str(), res->getUInt(1), str.str().c_str());
 #endif
+
+		found = true;
 	}
+
+	return found;
 }
 
 bool MySQLMMManager::allowxfr(const std::string &zone, const std::string &client)

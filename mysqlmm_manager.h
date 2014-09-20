@@ -62,13 +62,13 @@ class MySQLMMManager
 	~MySQLMMManager();
 
 	bool findzonedb(const std::string &zone);
-	void lookup(const std::string &zone, const std::string &name, dns_sdlzlookup_t *lookup);
+	bool lookup(const std::string &zone, const std::string &name, dns_sdlzlookup_t *lookup);
 
 	inline bool hasAuthority() { return queries.find(MM_QUERY_AUTHORITY) != queries.end(); }
-	void authority(const std::string &zone, dns_sdlzlookup_t *lookup);
+	bool authority(const std::string &zone, dns_sdlzlookup_t *lookup);
 
 	inline bool hasAllnodes() { return queries.find(MM_QUERY_ALLNODES) != queries.end(); }
-	void allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes);
+	bool allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes);
 
 	inline bool hasAllowxfr() { return queries.find(MM_QUERY_ALLOWXFR) != queries.end(); }
 	bool allowxfr(const std::string &zone, const std::string &client);
@@ -81,7 +81,7 @@ class MySQLMMManager
 	std::shared_ptr<mmconn> spawnConnection();
 	std::shared_ptr<mmconn> getFreeConnection();
 	void fillPrepQry(mmquery &qry, const std::string &zone = "", const std::string &record = "", const std::string &client = "");
-	void process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet> &res);
+	bool process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet> &res);
 
 	public:
 	bind9_functions f;
