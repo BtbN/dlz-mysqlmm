@@ -13,7 +13,7 @@
 #include "util.h"
 #include "mysqlmm_manager.h"
 
-#if 1
+#if 0
 #define VERBOSE_LOG
 #endif
 
@@ -250,10 +250,18 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 
 	std::shared_ptr<mmconn> res = std::make_shared<mmconn>();
 
-	res->connection = std::shared_ptr<sql::Connection>(driver->connect(url, user, password));
+	sql::ConnectOptionsMap options;
+
+	options["hostName"] = url;
+	options["userName"] = user;
+	options["password"] = password;
 
 	if(!db.empty())
-		res->connection->setSchema(db);
+		options["schema"] = db;
+
+	options["OPT_RECONNECT"] = true;
+
+	res->connection = std::shared_ptr<sql::Connection>(driver->connect(options));
 
 	res->queries = queries;
 
