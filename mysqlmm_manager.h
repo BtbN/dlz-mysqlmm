@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "util.h"
 
@@ -80,6 +81,7 @@ class MySQLMMManager
 	void readConfig(const std::string &cfg);
 	std::shared_ptr<mmconn> spawnConnection();
 	std::shared_ptr<mmconn> getFreeConnection();
+	void removeConnectionFromPool(const std::shared_ptr<mmconn> &con);
 	void fillPrepQry(mmquery &qry, const std::string &zone = "", const std::string &record = "", const std::string &client = "");
 	bool process_look_auth_res(dns_sdlzlookup_t* lookup, const std::unique_ptr<sql::ResultSet> &res);
 
@@ -88,7 +90,7 @@ class MySQLMMManager
 
 	private:
 	sql::mysql::MySQL_Driver *driver;
-	std::vector<std::shared_ptr<mmconn>> connections;
+	std::unordered_set<std::shared_ptr<mmconn>> connections;
 
 	std::string url;
 	std::string user;

@@ -9,6 +9,7 @@
 #include <mysql_driver.h>
 #include <mysql_connection.h>
 #include <cppconn/prepared_statement.h>
+#include <cppconn/exception.h>
 
 #include "util.h"
 #include "mysqlmm_manager.h"
@@ -259,8 +260,6 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 	if(!db.empty())
 		options["schema"] = db;
 
-	options["OPT_RECONNECT"] = true;
-
 	res->connection = std::shared_ptr<sql::Connection>(driver->connect(options));
 
 	res->queries = queries;
@@ -273,7 +272,7 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::spawnConnection()
 			throw std::runtime_error(std::string("Failed preparing query: ") + qry.second.sql);
 	}
 
-	connections.push_back(res);
+	connections.insert(res);
 
 	f.log(ISC_LOG_INFO, "MySQLMM spawned new connection, now at %d out of %d maximum connections", (int)connections.size(), max_connections);
 
@@ -286,7 +285,7 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::getFreeConnection()
 
 	std::lock_guard<std::recursive_mutex> lock(connectionAquisitionMutex);
 
-	for(std::shared_ptr<mmconn> &conn: connections)
+	for(const std::shared_ptr<mmconn> &conn: connections)
 	{
 		if(conn.unique())
 		{
@@ -295,6 +294,16 @@ std::shared_ptr<MySQLMMManager::mmconn> MySQLMMManager::getFreeConnection()
 	}
 
 	return spawnConnection();
+}
+
+void MySQLMMManager::removeConnectionFromPool(const std::shared_ptr<MySQLMMManager::mmconn>& con)
+{
+	std::lock_guard<std::recursive_mutex> lock(connectionAquisitionMutex);
+
+	if(!connections.erase(con))
+		throw std::runtime_error("Tried removing a connection that's not in the set of connections!");
+
+	f.log(ISC_LOG_WARNING, "MySQLMM removed dead connection from pool");
 }
 
 void MySQLMMManager::fillPrepQry(MySQLMMManager::mmquery &qry, const std::string& zone, const std::string& record, const std::string& client)
@@ -395,24 +404,34 @@ bool MySQLMMManager::findzonedb(const std::string& zone)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
-	mmquery &qry = con->queries.at(MM_QUERY_FINDZONE);
-	fillPrepQry(qry, zone);
-
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
-
-	if(res->next())
+	try
 	{
+		mmquery &qry = con->queries.at(MM_QUERY_FINDZONE);
+		fillPrepQry(qry, zone);
+
+		std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+		if(res->next())
+		{
 #ifdef VERBOSE_LOG
-		f.log(ISC_LOG_INFO, "MySQLMM Found zone %s!", zone.c_str());
+			f.log(ISC_LOG_INFO, "MySQLMM Found zone %s!", zone.c_str());
 #endif
-		return true;
+			return true;
+		}
+
+#ifdef VERBOSE_LOG
+		f.log(ISC_LOG_INFO, "MySQLMM Not found zone %s!", zone.c_str());
+#endif
+
+		return false;
 	}
+	catch(const sql::SQLException&)
+	{
+		if(con->connection->isClosed())
+			removeConnectionFromPool(con);
 
-#ifdef VERBOSE_LOG
-	f.log(ISC_LOG_INFO, "MySQLMM Not found zone %s!", zone.c_str());
-#endif
-
-	return false;
+		throw;
+	}
 }
 
 bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dns_sdlzlookup_t* lookup)
@@ -423,124 +442,174 @@ bool MySQLMMManager::lookup(const std::string& zone, const std::string& name, dn
 
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
-	mmquery &qry = con->queries.at(MM_QUERY_LOOKUP);
-	fillPrepQry(qry, zone, name);
+	try
+	{
+		mmquery &qry = con->queries.at(MM_QUERY_LOOKUP);
+		fillPrepQry(qry, zone, name);
 
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+		std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
 
-	return process_look_auth_res(lookup, res);
+		return process_look_auth_res(lookup, res);
+	}
+	catch(const sql::SQLException&)
+	{
+		if(con->connection->isClosed())
+			removeConnectionFromPool(con);
+
+		throw;
+	}
 }
 
-bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t* lookup)
+bool MySQLMMManager::authority(const std::string& zone, dns_sdlzlookup_t *lookup)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
-	mmquery &qry = con->queries.at(MM_QUERY_AUTHORITY);
-	fillPrepQry(qry, zone);
+	try
+	{
+		mmquery &qry = con->queries.at(MM_QUERY_AUTHORITY);
+		fillPrepQry(qry, zone);
 
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+		std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
 
 #ifdef VERBOSE_LOG
-	f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
+		f.log(ISC_LOG_INFO, "MySQLMM Looking for authority of %s!", zone.c_str());
 #endif
 
-	return process_look_auth_res(lookup, res);
+		return process_look_auth_res(lookup, res);
+	}
+	catch(const sql::SQLException&)
+	{
+		if(con->connection->isClosed())
+			removeConnectionFromPool(con);
+
+		throw;
+	}
 }
 
 bool MySQLMMManager::allnodes(const std::string &zone, dns_sdlzallnodes_t *allnodes)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
-	mmquery &qry = con->queries.at(MM_QUERY_ALLNODES);
-	fillPrepQry(qry, zone);
+	try
+	{
+		mmquery &qry = con->queries.at(MM_QUERY_ALLNODES);
+		fillPrepQry(qry, zone);
 
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
-	sql::ResultSetMetaData *meta = res->getMetaData();
+		std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+		sql::ResultSetMetaData *meta = res->getMetaData();
 
-	if(!meta)
-		throw std::runtime_error("MySQLMM allnodes needs result metadata");
+		if(!meta)
+			throw std::runtime_error("MySQLMM allnodes needs result metadata");
 
-	unsigned int cols = meta->getColumnCount();
-	bool found = false;
+		unsigned int cols = meta->getColumnCount();
+		bool found = false;
 
-	if(cols < 4)
-		throw std::runtime_error("MySQLMM allnodes query returned less than 4 fields!");
+		if(cols < 4)
+			throw std::runtime_error("MySQLMM allnodes query returned less than 4 fields!");
 
 #ifdef VERBOSE_LOG
-	f.log(ISC_LOG_INFO, "MySQLMM Looking for allnodes of %s!", zone.c_str());
+		f.log(ISC_LOG_INFO, "MySQLMM Looking for allnodes of %s!", zone.c_str());
 #endif
 
-	while(res->next())
-	{
-		std::ostringstream str;
-		std::string sep = "";
-
-		for(unsigned int i = 4; i <= cols; ++i)
+		while(res->next())
 		{
-			std::string part = res->getString(i);
+			std::ostringstream str;
+			std::string sep = "";
 
-			if(!part.empty())
+			for(unsigned int i = 4; i <= cols; ++i)
 			{
-				str << sep << part;
-				sep = " ";
+				std::string part = res->getString(i);
+
+				if(!part.empty())
+				{
+					str << sep << part;
+					sep = " ";
+				}
 			}
+
+			isc_result_t result = f.putnamedrr(allnodes,
+											   res->getString(3).c_str(),
+											   res->getString(2).c_str(),
+											   res->getUInt(1),
+											   str.str().c_str());
+
+			if(result != ISC_R_SUCCESS)
+				throw std::runtime_error("MySQLMM putnamedrr failed");
+
+#ifdef VERBOSE_LOG
+			f.log(ISC_LOG_INFO, "MySQLMM allnodes result: %s %s %d %s", res->getString(3).c_str(), res->getString(2).c_str(), res->getUInt(1), str.str().c_str());
+#endif
+
+			found = true;
 		}
 
-		isc_result_t result = f.putnamedrr(allnodes,
-		                                   res->getString(3).c_str(),
-		                                   res->getString(2).c_str(),
-		                                   res->getUInt(1),
-		                                   str.str().c_str());
-
-		if(result != ISC_R_SUCCESS)
-			throw std::runtime_error("MySQLMM putnamedrr failed");
-
-#ifdef VERBOSE_LOG
-		f.log(ISC_LOG_INFO, "MySQLMM allnodes result: %s %s %d %s", res->getString(3).c_str(), res->getString(2).c_str(), res->getUInt(1), str.str().c_str());
-#endif
-
-		found = true;
+		return found;
 	}
+	catch(const sql::SQLException&)
+	{
+		if(con->connection->isClosed())
+			removeConnectionFromPool(con);
 
-	return found;
+		throw;
+	}
 }
 
 bool MySQLMMManager::allowxfr(const std::string &zone, const std::string &client)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
-	mmquery &qry = con->queries.at(MM_QUERY_ALLOWXFR);
-	fillPrepQry(qry, zone, "", client);
-
-	std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
-
-	if(res->next())
+	try
 	{
+		mmquery &qry = con->queries.at(MM_QUERY_ALLOWXFR);
+		fillPrepQry(qry, zone, "", client);
+
+		std::unique_ptr<sql::ResultSet> res(qry.prep_stmt->executeQuery());
+
+		if(res->next())
+		{
 #ifdef VERBOSE_LOG
-		f.log(ISC_LOG_INFO, "MySQLMM Client %s allowed xfr in zone %s!", client.c_str(), zone.c_str());
+			f.log(ISC_LOG_INFO, "MySQLMM Client %s allowed xfr in zone %s!", client.c_str(), zone.c_str());
 #endif
-		return true;
+			return true;
+		}
+
+#ifdef VERBOSE_LOG
+		f.log(ISC_LOG_INFO, "MySQLMM Client %s NOT allowed xfr in zone %s!", client.c_str(), zone.c_str());
+#endif
+
+		return false;
 	}
+	catch(const sql::SQLException&)
+	{
+		if(con->connection->isClosed())
+			removeConnectionFromPool(con);
 
-#ifdef VERBOSE_LOG
-	f.log(ISC_LOG_INFO, "MySQLMM Client %s NOT allowed xfr in zone %s!", client.c_str(), zone.c_str());
-#endif
-
-	return false;
+		throw;
+	}
 }
 
 void MySQLMMManager::countzone(const std::string &zone)
 {
 	std::shared_ptr<mmconn> con = getFreeConnection();
 
-	mmquery &qry = con->queries.at(MM_QUERY_COUNTZONE);
-	fillPrepQry(qry, zone);
+	try
+	{
+		mmquery &qry = con->queries.at(MM_QUERY_COUNTZONE);
+		fillPrepQry(qry, zone);
 
-	int cnt = qry.prep_stmt->executeUpdate();
+		int cnt = qry.prep_stmt->executeUpdate();
 
 #ifdef VERBOSE_LOG
-	f.log(ISC_LOG_INFO, "MySQL Updated zone count for zone %s. result %d", zone.c_str(), cnt);
+		f.log(ISC_LOG_INFO, "MySQL Updated zone count for zone %s. result %d", zone.c_str(), cnt);
 #else
-	(void)cnt;
+		(void)cnt;
 #endif
+	}
+	catch(const sql::SQLException&)
+	{
+		if(con->connection->isClosed())
+			removeConnectionFromPool(con);
+
+		throw;
+	}
 }
