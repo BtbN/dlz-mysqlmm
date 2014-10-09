@@ -39,13 +39,13 @@ struct bind9_functions
 		return putnamedrr_f(allnodes, name, type, ttl, data);
 	}
 
-	inline isc_result_t writeable_zone(dns_view_t *view, dns_dlzdb_t *dlzdb, const char *zone_name)
+	/* inline isc_result_t writeable_zone(dns_view_t *view, dns_dlzdb_t *dlzdb, const char *zone_name)
 	{
 		if(!writeable_zone_f)
 			return ISC_R_NOTIMPLEMENTED;
 
 		return writeable_zone_f(view, dlzdb, zone_name);
-	}
+	} */
 };
 
 inline void strtolower(std::string &str)
